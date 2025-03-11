@@ -1,4 +1,13 @@
 const captions = window.document.getElementById("captions");
+let audio = null;
+// Play welcome audio when page loads
+function playWelcomeAudio() {
+  console.log("Playing welcome audio");
+  audio = new Audio('/output.wav');
+  audio.play().catch(error => {
+    console.error("Error playing welcome audio:", error);
+  });
+}
 
 async function getMicrophone() {
   try {
@@ -47,7 +56,10 @@ async function start(socket) {
     if (!microphone) {
       try {
         microphone = await getMicrophone();
+        console.log("client: microphone opened");
+       
         await openMicrophone(microphone, socket);
+       
       } catch (error) {
         console.error("Error opening microphone:", error);
       }
@@ -59,6 +71,8 @@ async function start(socket) {
 }
 
 window.addEventListener("load", () => {
+  console.log("Loading welcome audio");
+ 
   const socket = new WebSocket("ws://localhost:3000");
 
   socket.addEventListener("open", async () => {
@@ -68,7 +82,11 @@ window.addEventListener("load", () => {
 
   socket.addEventListener("message", (event) => {
     const data = JSON.parse(event.data);
+    
     if (data.channel.alternatives[0].transcript !== "") {
+      if (audio) {
+        audio.stop();
+      }
       captions.innerHTML = data
         ? `<span>${data.channel.alternatives[0].transcript}</span>`
         : "";
@@ -79,3 +97,5 @@ window.addEventListener("load", () => {
     console.log("WebSocket connection closed");
   });
 });
+
+

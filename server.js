@@ -3,6 +3,8 @@ const http = require("http");
 const WebSocket = require("ws");
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 const dotenv = require("dotenv");
+const fs = require("fs");
+const axios = require("axios");
 dotenv.config();
 
 const app = express();
@@ -12,12 +14,77 @@ const wss = new WebSocket.Server({ server });
 const deepgramClient = createClient(process.env.DEEPGRAM_API_KEY);
 let keepAlive;
 
+const text = "Hello and welcome to Singapore Changi Airport! I'm Natasha. How can I assist you today? Whether you need flight details, directions, or travel tips, I'm here to help make your journey smooth and enjoyable.";
+
+// Generate TTS audio on server start
+//generateWelcomeAudio();
+
+// Function to generate welcome audio using ElevenLabs
+async function generateWelcomeAudio() {
+  try {
+    console.log("Generating welcome audio...");
+    await getAudioFromElevenLabs();
+    console.log("Welcome audio generated successfully");
+  } catch (error) {
+    console.error("Error generating welcome audio:", error);
+  }
+}
+
+// Function to get audio from ElevenLabs
+async function getAudioFromElevenLabs() {
+  try {
+    // Make sure you have your ElevenLabs API key in your .env file
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      throw new Error("ELEVENLABS_API_KEY is not defined in .env file");
+    }
+
+    // ElevenLabs API endpoint for text-to-speech
+    const url = "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM"; // Rachel voice ID
+
+    // Request configuration
+    const config = {
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": apiKey
+      },
+      responseType: 'arraybuffer'
+    };
+
+    // Request body
+    const data = {
+      text: text,
+      model_id: "eleven_monolingual_v1",
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.5
+      }
+    };
+
+    console.log("Requesting audio from ElevenLabs...");
+    const response = await axios.post(url, data, config);
+    
+    // Save the audio file
+    fs.writeFileSync("public/output.wav", response.data);
+    console.log("Audio file written to public/output.wav");
+    
+    return true;
+  } catch (error) {
+    console.error("Error in getAudioFromElevenLabs:", error.message);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data.toString());
+    }
+    throw error;
+  }
+}
+
 const setupDeepgram = (ws) => {
   const deepgram = deepgramClient.listen.live({
     language: "en",
     punctuate: true,
     smart_format: true,
-    model: "nova",
+    model: "nova-3",
   });
 
   if (keepAlive) clearInterval(keepAlive);
@@ -28,6 +95,7 @@ const setupDeepgram = (ws) => {
 
   deepgram.addListener(LiveTranscriptionEvents.Open, async () => {
     console.log("deepgram: connected");
+   
 
     deepgram.addListener(LiveTranscriptionEvents.Transcript, (data) => {
       console.log("deepgram: packet received");
@@ -66,7 +134,7 @@ const setupDeepgram = (ws) => {
 wss.on("connection", (ws) => {
   console.log("socket: client connected");
   let deepgram = setupDeepgram(ws);
-
+  
   ws.on("message", (message) => {
     console.log("socket: client data received");
 
@@ -92,10 +160,18 @@ wss.on("connection", (ws) => {
     deepgram = null;
   });
 });
+ 
+
+
 
 app.use(express.static("public/"));
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/index.html");
+});
+
+// Serve the welcome audio file
+app.get("/welcome-audio", (req, res) => {
+  res.sendFile(__dirname + "/public/output.wav");
 });
 
 server.listen(3000, () => {
