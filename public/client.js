@@ -49,17 +49,22 @@ async function closeMicrophone(microphone) {
 async function start(socket) {
   const listenButton = document.querySelector("#record");
   let microphone;
+  let welcomeAudioPlayed = false; // Track if welcome audio has been played
 
   console.log("client: waiting to open microphone");
 
   listenButton.addEventListener("click", async () => {
     if (!microphone) {
       try {
+        // Play welcome audio if it hasn't been played yet
+        if (!welcomeAudioPlayed) {
+          playWelcomeAudio();
+          welcomeAudioPlayed = true;
+        }
+        
         microphone = await getMicrophone();
         console.log("client: microphone opened");
-       
         await openMicrophone(microphone, socket);
-       
       } catch (error) {
         console.error("Error opening microphone:", error);
       }
@@ -71,8 +76,6 @@ async function start(socket) {
 }
 
 window.addEventListener("load", () => {
-  console.log("Loading welcome audio");
- 
   const socket = new WebSocket("ws://localhost:3000");
 
   socket.addEventListener("open", async () => {
@@ -85,8 +88,11 @@ window.addEventListener("load", () => {
     
     if (data.channel.alternatives[0].transcript !== "") {
       if (audio) {
-        audio.stop();
+        console.log("stopping audio");
+        audio.pause();
+        audio.currentTime = 0;
       }
+      console.log("transcript: ", data.channel.alternatives[0].transcript);
       captions.innerHTML = data
         ? `<span>${data.channel.alternatives[0].transcript}</span>`
         : "";

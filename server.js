@@ -14,7 +14,7 @@ const wss = new WebSocket.Server({ server });
 const deepgramClient = createClient(process.env.DEEPGRAM_API_KEY);
 let keepAlive;
 
-const text = "Hello and welcome to Singapore Changi Airport! I'm Natasha. How can I assist you today? Whether you need flight details, directions, or travel tips, I'm here to help make your journey smooth and enjoyable.";
+const text = "Hello and welcome to Singapore Changi Airport! I'm Natasha. I can assist you with flight details, directions, or travel tips, I'm here to help make your journey smooth and enjoyable.";
 
 // Generate TTS audio on server start
 //generateWelcomeAudio();
@@ -101,6 +101,7 @@ const setupDeepgram = (ws) => {
       console.log("deepgram: packet received");
       console.log("deepgram: transcript received");
       console.log("socket: transcript sent to client");
+      console.log( " transcript: ", data);
       ws.send(JSON.stringify(data));
     });
 
@@ -161,9 +162,6 @@ wss.on("connection", (ws) => {
   });
 });
  
-
-
-
 app.use(express.static("public/"));
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/index.html");
