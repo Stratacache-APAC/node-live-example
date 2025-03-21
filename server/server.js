@@ -5,6 +5,8 @@ const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 const dotenv = require("dotenv");
 const fs = require("fs");
 const axios = require("axios");
+const path = require("path");
+global.Blob = require('node:buffer').Blob;
 dotenv.config();
 
 const app = express();
@@ -96,14 +98,50 @@ const setupDeepgram = (ws) => {
   deepgram.addListener(LiveTranscriptionEvents.Open, async () => {
     console.log("deepgram: connected");
    
-
+    const filePath = "transcripts.json";
     deepgram.addListener(LiveTranscriptionEvents.Transcript, (data) => {
       console.log("deepgram: packet received");
       console.log("deepgram: transcript received");
       console.log("socket: transcript sent to client");
-      console.log( " transcript: ", data);
+    
+      // Send to client
       ws.send(JSON.stringify(data));
+    
+      // Save to file
+      try {
+        const transcriptText = data.channel?.alternatives?.[0]?.transcript;
+        if (transcriptText && transcriptText.trim() !== "") {
+          const timestamp = new Date().toISOString();
+          const transcriptEntry = {
+            timestamp,
+            transcript: transcriptText,
+          };
+    
+          let transcripts = [];
+    
+          // Check if file exists and has content
+          if (fs.existsSync(filePath)) {
+            const fileContent = fs.readFileSync(filePath, "utf-8");
+            if (fileContent.trim() !== "") {
+              try {
+                transcripts = JSON.parse(fileContent);
+              } catch (parseErr) {
+                console.error("Error parsing existing transcripts.json:", parseErr);
+              }
+            }
+          }
+    
+          // Add new entry
+          transcripts.push(transcriptEntry);
+    
+          // Save back to file as array
+          fs.writeFileSync(filePath, JSON.stringify(transcripts, null, 2));
+        }
+      } catch (err) {
+        console.error("Error saving transcript to file:", err);
+      }
     });
+    
 
     deepgram.addListener(LiveTranscriptionEvents.Close, async () => {
       console.log("deepgram: disconnected");
@@ -163,8 +201,9 @@ wss.on("connection", (ws) => {
 });
  
 app.use(express.static("public/"));
+app.use(express.static(path.join(__dirname, '../client/dist')));
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/index.html");
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 // Serve the welcome audio file
